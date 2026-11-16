@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+   AgendaKu — index.html  (the page that loads everything)
+   Files that belong together in the same folder:
+     index.html  styles.css  config.js  hash.js  i18n.js  parser.js  app.js
+     manifest.webmanifest  sw.js  icon-192.png  icon-512.png
+     icon-maskable-512.png  apple-touch-icon.png
+  ============================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AgendaKu</title>
+  <meta name="description" content="Personal agenda app connected to Google Sheets and Google Calendar.">
+  <meta name="theme-color" content="#F3F5FB">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+
+  <!-- Install to home screen (PWA) -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AgendaKu">
+
+  <!-- Font (falls back to the phone's own font when offline) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Loading screen -->
+  <div id="boot"><span class="spin big"></span></div>
+
+  <!-- Connect + PIN screens -->
+  <div id="gate" hidden></div>
+
+  <!-- The app -->
+  <div id="app" hidden>
+    <header id="top"></header>
+    <main id="view"></main>
+    <nav id="nav" aria-label="Main"></nav>
+  </div>
+
+  <!-- Slide-up panel (forms, details, settings) -->
+  <div id="sheet-wrap" hidden>
+    <div class="backdrop"></div>
+    <section id="sheet" role="dialog" aria-modal="true"></section>
+  </div>
+
+  <!-- Confirmation dialog -->
+  <div id="dialog-wrap" hidden>
+    <div class="backdrop"></div>
+    <div id="dialog" role="alertdialog" aria-modal="true"></div>
+  </div>
+
+  <!-- Success / error messages -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <noscript>AgendaKu needs JavaScript to run.</noscript>
+
+  <script src="config.js"></script>
+  <script src="hash.js"></script>
+  <script src="i18n.js"></script>
+  <script src="parser.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
