@@ -13,7 +13,7 @@
 
   /* ============ 1. SETUP & HELPERS ============ */
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.2.1';
   const CREDIT = 'Created by CreanovativeCo';   // brand line shown on the start screens, Home and Settings
   const CATS = ['Work', 'Family', 'School', 'Personal', 'Other'];
   const STATUSES = ['Scheduled', 'Done', 'Postponed', 'Cancelled', 'Other'];
@@ -1151,14 +1151,17 @@
   function openNoteForm(note) {
     const isNew = !note;
     const n = note || { id: '', topic: S.noteFilter.topic !== 'all' ? S.noteFilter.topic : '', title: '', content: '', date: todayStr(), pinned: false };
-    const topics = t('topicDefaults').split(',');
-    S.notes.forEach((x) => { if (x.topic && topics.indexOf(x.topic) < 0) topics.push(x.topic); });
+    // topic suggestions: the user's own topics first, then the built-in list
+    const defaults = t('topicDefaults').split(',');
+    const own = [];
+    S.notes.forEach((x) => { if (x.topic && defaults.indexOf(x.topic) < 0 && own.indexOf(x.topic) < 0) own.push(x.topic); });
+    const topics = own.sort().concat(defaults);
     openSheet({ type: 'note', id: n.id }, `
       ${sheetHead(isNew ? t('newNote') : t('editNote'), isNew ? '' : `<button class="icon-btn danger" data-act="askDeleteNote" data-id="${esc(n.id)}" aria-label="${t('delete')}">${icon('trash')}</button>`)}
       <form data-form="note" novalidate>
         <div class="field"><label for="n-topic">${t('topic')}</label><input id="n-topic" list="topic-list" maxlength="60" placeholder="${t('topicPh')}" value="${esc(n.topic)}" autocomplete="off">
           <datalist id="topic-list">${topics.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
-          <div class="chips mini-chips">${topics.slice(0, 6).map((x) => `<button type="button" class="chip" data-act="setTopic" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
+          <div class="chips mini-chips" id="topic-chips">${topics.map((x) => `<button type="button" class="chip ${n.topic === x ? 'on' : ''}" data-act="setTopic" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
         <div class="field" id="nw-title"><label for="n-title">${t('noteTitle')} <em>*</em></label><input id="n-title" maxlength="200" placeholder="${t('noteTitlePh')}" value="${esc(n.title)}" autocomplete="off"><p class="err"></p></div>
         <div class="field"><label for="n-content">${t('content')}</label><textarea id="n-content" rows="5" placeholder="${t('contentPh')}">${esc(n.content)}</textarea></div>
         <div class="field"><label for="n-date">${t('date')}</label><input id="n-date" type="date" value="${esc(n.date || todayStr())}"></div>
@@ -1450,7 +1453,7 @@
     addNote() { openNoteForm(null); },
     openNote(el) { const n = S.notes.find((x) => x.id === el.dataset.id); if (n) openNoteForm(n); },
     nTopic(el) { S.noteFilter.topic = el.dataset.v; renderView(); },
-    setTopic(el) { $('#n-topic').value = el.dataset.v; },
+    setTopic(el) { $('#n-topic').value = el.dataset.v; $$('#topic-chips .chip').forEach((c) => c.classList.toggle('on', c === el)); },
     askDeleteNote(el) {
       const n = S.notes.find((x) => x.id === el.dataset.id); if (!n) return;
       confirmBox(t('deleteNoteQ'), t('deleteNoteSub', { title: esc(n.title) }), t('delete'), () => {
@@ -1563,6 +1566,7 @@
     if (k === 'noteSearch') { S.noteFilter.q = e.target.value; $('#notes-list').innerHTML = notesListHtml(); }
     if (e.target.id === 'f-title' && e.target.value.trim()) setFieldError('fw-title', '');
     if (e.target.id === 'n-title' && e.target.value.trim()) setFieldError('nw-title', '');
+    if (e.target.id === 'n-topic') { const v = e.target.value.trim().toLowerCase(); $$('#topic-chips .chip').forEach((c) => c.classList.toggle('on', c.dataset.v.toLowerCase() === v)); }
   });
   document.addEventListener('submit', (e) => {
     const f = e.target.dataset && e.target.dataset.form;
