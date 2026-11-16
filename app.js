@@ -13,7 +13,8 @@
 
   /* ============ 1. SETUP & HELPERS ============ */
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
+  const CREDIT = 'Created by CreanovativeCo';   // brand line shown on the start screens, Home and Settings
   const CATS = ['Work', 'Family', 'School', 'Personal', 'Other'];
   const STATUSES = ['Scheduled', 'Done', 'Postponed', 'Cancelled', 'Other'];
   const CAT_COLOR = { Work: '#4F5BF0', Family: '#E0762F', School: '#0F9D8D', Personal: '#B548C8', Other: '#7B869C' };
@@ -99,9 +100,26 @@
     logout: '<path d="M10 5H6v14h4M14 8l4 4-4 4M18 12H10"/>',
     phone: '<rect x="7" y="3" width="10" height="18" rx="2.500"/><path d="M11 18h2"/>',
     sheet: '<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M5 10h14M5 15h14M11 10v10"/>',
-    spark: '<path d="M12 4v4M12 16v4M4 12h4M16 12h4"/>'
+    spark: '<path d="M12 4v4M12 16v4M4 12h4M16 12h4"/>',
+    user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
+    up: '<path d="M12 16V5M7.5 9.5L12 5l4.5 4.5M5 19h14"/>'
   };
   const icon = (n, cls) => `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n] || ''}</svg>`;
+
+  // Profile picture: the chosen photo, or the initials on a soft colour
+  const AV_COLORS = [['#DCE0FF', '#3F49D6'], ['#E1F4E8', '#23824F'], ['#FFEDE3', '#C9542B'], ['#EEEAFE', '#6A4FD8'], ['#E3F1FF', '#2B6FD6'], ['#FBE4EE', '#B8437A']];
+  function initials() {
+    const parts = (S.settings.name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '';
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+  function avatar(size) {
+    const p = S.profile || {};
+    const box = `width:${size}px;height:${size}px;`;
+    if (p.photo && /^data:image\//.test(p.photo)) return `<span class="av" style="${box}"><img src="${esc(p.photo)}" alt=""></span>`;
+    const c = AV_COLORS[(Number(p.color) || 0) % AV_COLORS.length], ini = initials();
+    return `<span class="av" style="${box}background:${c[0]};color:${c[1]};font-size:${Math.round(size * 0.38)}px">${ini ? esc(ini) : icon('user')}</span>`;
+  }
 
   /* ============ 2. STORAGE & STATE ============ */
 
@@ -122,6 +140,7 @@
     local: store.get('ak_local', false),          // true = data stays on this phone, no Google Sheet
     recHash: store.get('ak_rechash', ''),
     lastBackup: store.get('ak_backup', 0),
+    profile: store.get('ak_profile', { photo: '', bio: '', color: 0 }),   // stored on this phone only
     agenda: store.get('ak_agenda', []),
     notes: store.get('ak_notes', []),
     settings: store.get('ak_settings', { name: '', calendarSync: true, reminderMinutes: 30 }),
@@ -245,13 +264,16 @@
       }
     }
     flushing = false; S.syncing = false; syncUI();
+    if (bulkDone && !S.outbox.length) { toast(t('importedN', { n: bulkDone }), 'success'); bulkDone = 0; renderView(); }
     if (needPull) pull(true);
   }
 
+  let bulkDone = 0;
   function applyResult(op, r) {
     if (op.action === 'saveAgenda' && r.item) {
       const i = S.agenda.findIndex((x) => x.id === r.item.id);
       if (i >= 0) S.agenda[i] = r.item;
+      if (op.kind === 'bulk') { bulkDone++; return; }
       if (r.item.calendarError) toast(t('calFailed'), 'info');
       else toast(S.demo ? t('savedDemo') : S.local ? t('savedLocal') : (S.settings.calendarSync && r.item.eventId ? t('savedCal') : t('saved')), 'success');
     } else if (op.action === 'saveNote') {
@@ -308,7 +330,7 @@
 
   function showGate(html) {
     appEl.hidden = true; gate.hidden = false; $('#boot').hidden = true;
-    gate.innerHTML = html;
+    gate.innerHTML = html + `<p class="credit">${CREDIT}</p>`;
   }
 
   function showWelcome() {
@@ -551,7 +573,7 @@
     $('#top').innerHTML = `${logo()}
       <div class="top-right">${S.demo ? `<span class="badge demo">${t('demoBadge')}</span>` : ''}
         <button id="sync" class="sync ok" data-act="syncNow"></button>
-        <button class="icon-btn" data-act="settings" aria-label="${t('settings')}">${icon('gear')}</button></div>`;
+        <button class="av-btn" data-act="settings" aria-label="${t('settingsTitle')}">${avatar(44)}</button></div>`;
     const item = (v, ic, label) => `<button class="nav-item ${S.view === v ? 'on' : ''}" data-act="go" data-view="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></button>`;
     $('#nav').innerHTML = item('home', 'home', t('navHome')) + item('agenda', 'list', t('navAgenda')) +
       `<button class="fab" data-act="add" aria-label="${t('addAgenda')}">${icon('plus')}</button>` +
@@ -644,7 +666,8 @@
         ${todays.length ? `<div class="ag-list">${todays.map(agCard).join('')}</div>` : emptyBox('cal', t('emptyDay'), '', `<button class="btn soft" data-act="add">${icon('plus')}${t('emptyDayCta')}</button>`)}
       </section>
       <section class="card" id="cal-card">${calendarHtml()}</section>
-      <section class="card" id="chart-card">${homeChartHtml()}</section>`;
+      <section class="card" id="chart-card">${homeChartHtml()}</section>
+      <p class="credit">${CREDIT}</p>`;
   }
 
   function emptyBox(ic, title, sub, cta) {
@@ -1165,8 +1188,18 @@
     const remLabel = (m) => (m === 0 ? t('rem0') : m === 1440 ? t('remDay') : m >= 60 ? t('remHour', { n: m / 60 }) : t('remMin', { n: m }));
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
     openSheet({ type: 'settings' }, `
-      ${sheetHead(t('settings'))}
+      ${sheetHead(t('settingsTitle'))}
+      <div class="profile-card">
+        <button class="av-edit" data-act="pickPhoto" aria-label="${t('changePhoto')}">${avatar(84)}<span class="av-cam">${icon('edit')}</span></button>
+        <div class="pc-body"><strong id="pc-name">${esc(s.name || t('hiNoName'))}</strong><small id="pc-bio">${esc(S.profile.bio || t('bioEmpty'))}</small>
+          <div class="row"><button class="btn soft sm" data-act="pickPhoto">${t('changePhoto')}</button>
+          ${S.profile.photo ? `<button class="btn ghost sm" data-act="removePhoto">${t('removePhoto')}</button>` : ''}</div></div>
+      </div>
+      <input type="file" id="photo-file" accept="image/*" hidden data-ch="photoFile">
+      ${S.profile.photo ? '' : `<div class="swatches" role="group" aria-label="${t('avatarColor')}">${AV_COLORS.map((c, i) => `<button data-act="avColor" data-i="${i}" class="${(Number(S.profile.color) || 0) === i ? 'on' : ''}" style="background:${c[0]};color:${c[1]}" aria-label="${t('avatarColor')} ${i + 1}">${icon('check')}</button>`).join('')}</div>`}
       <div class="field"><label for="s-name">${t('yourName')}</label><input id="s-name" maxlength="40" placeholder="${t('namePh')}" value="${esc(s.name)}" data-ch="setName" autocomplete="off"></div>
+      <div class="field"><label for="s-bio">${t('bio')}</label><input id="s-bio" maxlength="80" placeholder="${t('bioPh')}" value="${esc(S.profile.bio)}" data-ch="setBio" autocomplete="off">
+        <p class="hint">${t('profileNote')}</p></div>
       <div class="field"><label>${t('language')}</label><div class="seg"><button data-act="lang" data-lang="en" class="${S.lang === 'en' ? 'on' : ''}">English</button><button data-act="lang" data-lang="id" class="${S.lang === 'id' ? 'on' : ''}">Bahasa Indonesia</button></div></div>
       ${S.local ? '' : `<label class="switch"><input type="checkbox" ${s.calendarSync ? 'checked' : ''} data-ch="setCal"><i></i><span>${t('calSync')}<small>${t('calSyncSub')}</small></span></label>
       <div class="field"><label for="s-rem">${t('reminder')}</label><select id="s-rem" data-ch="setRem">${rems.map((m) => `<option value="${m}" ${Number(s.reminderMinutes) === m ? 'selected' : ''}>${remLabel(m)}</option>`).join('')}</select></div>`}
@@ -1177,18 +1210,96 @@
         <button data-act="importBackup">${icon('refresh')}<span>${t('importBackup')}</span>${icon('right', 'chev')}</button>
         <button data-act="exportCsv">${icon('sheet')}<span>${t('exportCsv')}</span>${icon('right', 'chev')}</button>`
         : `<button data-act="syncNow">${icon('refresh')}<span>${t('syncNow')}</span>${icon('right', 'chev')}</button>`}
+        <button data-act="importList">${icon('up')}<span>${t('importList')}</span>${icon('right', 'chev')}</button>
         ${S.sheetUrl ? `<a href="${esc(S.sheetUrl)}" target="_blank" rel="noopener">${icon('sheet')}<span>${t('openSheet')}</span>${icon('out', 'chev')}</a>` : ''}
         ${installEvt ? `<button data-act="install">${icon('phone')}<span>${t('install')}</span>${icon('right', 'chev')}</button>` : ''}
       </div>
       ${S.local ? `<input type="file" id="import-file" accept=".json,application/json" hidden data-ch="importFile"><p class="hint">${icon('phone')} ${t('localNote')}</p>` : ''}
       ${installEvt ? '' : `<p class="hint">${icon('phone')} ${ios ? t('installIos') : t('installAndroid')}</p>`}
       <button class="btn ghost block danger" data-act="${S.demo ? 'exitDemo' : S.local ? 'askErase' : 'askDisconnect'}">${icon(S.local ? 'trash' : 'logout')}${S.demo ? t('exitDemo') : S.local ? t('eraseAll') : t('disconnect')}</button>
-      <p class="muted center small">AgendaKu · ${t('version')} ${VERSION}</p>`);
+      <p class="muted center small">AgendaKu · ${t('version')} ${VERSION}<br>${CREDIT}</p>`);
   }
   function saveSettings(patch) {
     Object.assign(S.settings, patch); persist(); renderView();
     enqueue('saveSettings', { settings: patch }, 'settings');
   }
+
+  // ----- Import a list of agendas (CSV text or file) -----
+  let importDraft = [];
+  function openImport() {
+    importDraft = [];
+    openSheet({ type: 'import' }, `
+      ${sheetHead(t('importList'))}
+      <p class="muted">${t('importHelp')}</p>
+      <div class="field" style="margin-top:12px"><textarea id="imp-text" rows="7" spellcheck="false" autocapitalize="off" placeholder="Date,Start,End,Category,Title,Location,Link,Bring,Status,Notes"></textarea></div>
+      <div class="row"><button class="btn soft grow" data-act="impPaste">${icon('paste')}${t('pasteBtn')}</button>
+        <button class="btn soft grow" data-act="impFile">${icon('up')}${t('chooseFile')}</button></div>
+      <input type="file" id="imp-file" accept=".csv,.txt,text/csv,text/plain" hidden data-ch="impFile">
+      <button class="btn primary block big" style="margin-top:12px" data-act="impCheck">${t('impCheck')}</button>
+      <div id="imp-result"></div>`);
+  }
+  function parseTable(text) {
+    text = String(text || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n').trim();
+    const first = text.split('\n')[0] || '';
+    const n = (re) => (first.match(re) || []).length;
+    const delim = n(/\t/g) >= 2 ? '\t' : n(/;/g) > n(/,/g) ? ';' : ',';
+    const rows = []; let row = [], cur = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (quoted) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else quoted = false; } else cur += ch; }
+      else if (ch === '"' && cur === '') quoted = true;
+      else if (ch === delim) { row.push(cur); cur = ''; }
+      else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+      else cur += ch;
+    }
+    row.push(cur); rows.push(row);
+    return rows.filter((r) => r.some((c) => c.trim()));
+  }
+  function readImport(text) {
+    const rows = parseTable(text);
+    const NAMES = { date: ['date', 'tanggal', 'tgl'], start: ['start', 'mulai', 'jam', 'time', 'waktu'], end: ['end', 'selesai'],
+      category: ['category', 'kategori'], title: ['title', 'agenda', 'nama', 'judul', 'kegiatan', 'name', 'nama agenda'],
+      location: ['location', 'tempat', 'lokasi', 'place'], link: ['link', 'url', 'tautan'], bring: ['bring', 'bawa', 'barang', 'barang bawaan'],
+      status: ['status'], notes: ['notes', 'note', 'catatan', 'keterangan'], followUp: ['follow-up', 'followup', 'tindak lanjut'],
+      followNote: ['follow-up note', 'followup note', 'catatan tindak lanjut'] };
+    const col = {};
+    (rows[0] || []).forEach((h, i) => { const k = h.trim().toLowerCase(); Object.keys(NAMES).forEach((f) => { if (col[f] === undefined && NAMES[f].indexOf(k) >= 0) col[f] = i; }); });
+    if (col.date === undefined || col.title === undefined) return { error: true };
+    const catMap = { work: 'Work', pekerjaan: 'Work', kerja: 'Work', kantor: 'Work', family: 'Family', keluarga: 'Family', school: 'School', sekolah: 'School', personal: 'Personal', pribadi: 'Personal' };
+    const stMap = { scheduled: 'Scheduled', terjadwal: 'Scheduled', done: 'Done', selesai: 'Done', postponed: 'Postponed', tunda: 'Postponed', ditunda: 'Postponed', cancelled: 'Cancelled', canceled: 'Cancelled', batal: 'Cancelled', other: 'Other', lainnya: 'Other' };
+    const have = {}; S.agenda.forEach((x) => { have[(x.title + '|' + x.date + '|' + (x.start || '')).toLowerCase()] = 1; });
+    const items = []; let dup = 0, bad = 0;
+    rows.slice(1).forEach((r) => {
+      const v = (f) => { let x = col[f] === undefined ? '' : String(r[col[f]] || '').trim(); if (/^'[=+\-@]/.test(x)) x = x.slice(1); return x; };
+      const title = v('title');
+      let date = v('date');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) date = window.AKParser.findDate(date, new Date(), true);
+      if (!title || !date) { bad++; return; }
+      const ts = window.AKParser.findTime(v('start'), true), te = window.AKParser.findTime(v('end'), true);
+      const start = ts ? ts.start : '', end = start ? (te ? te.start : (ts && ts.end) || '') : '';
+      const key = (title + '|' + date + '|' + start).toLowerCase();
+      if (have[key]) { dup++; return; }
+      have[key] = 1;
+      const fu = /^(true|yes|ya|1|x)$/i.test(v('followUp'));
+      items.push({ id: uid('A'), date: date, start: start, end: end && end > start ? end : '', category: catMap[v('category').toLowerCase()] || 'Other', title: title.slice(0, 200),
+        location: v('location'), link: safeUrl(v('link')), bring: v('bring'), status: stMap[v('status').toLowerCase()] || 'Scheduled', notes: v('notes'),
+        followUp: fu, followNote: v('followNote'), followDone: false, source: '', eventId: '', created: nowStamp(), updated: nowStamp() });
+    });
+    return { items: items, dup: dup, bad: bad };
+  }
+  function checkImport() {
+    const out = $('#imp-result'), r = readImport($('#imp-text').value);
+    importDraft = [];
+    if (r.error) { out.innerHTML = `<p class="hint bad">${t('impNoHeader')}</p>`; return; }
+    importDraft = r.items;
+    const preview = r.items.slice(0, 4).map((x) => `<div class="ins-row"><div><strong>${esc(x.title)}</strong><small>${fmtDate(x.date)}${x.start ? ' · ' + x.start : ''} · ${t('cat_' + x.category)}</small></div></div>`).join('');
+    out.innerHTML = `<div class="card" style="margin-top:14px"><div class="sec-head"><h2>${t('impFound', { n: r.items.length })}</h2></div>
+      ${r.dup ? `<p class="muted">${t('impDup', { n: r.dup })}</p>` : ''}${r.bad ? `<p class="muted">${t('impBad', { n: r.bad })}</p>` : ''}
+      ${preview}${r.items.length > 4 ? `<p class="muted pad">+ ${r.items.length - 4} …</p>` : ''}</div>
+      ${r.items.length ? `<button class="btn primary block big" style="margin-top:12px" data-act="impRun">${icon('check')}${t('impRun', { n: r.items.length })}</button>` : ''}`;
+    out.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  function saveProfile() { store.set('ak_profile', S.profile); }
 
   // ----- Dialogs -----
   const dlgWrap = $('#dialog-wrap'), dlg = $('#dialog');
@@ -1251,14 +1362,29 @@
     chooseSheet() { showConnect(); },
     chooseLocal() { S.local = true; store.set('ak_local', true); S.agenda = []; S.notes = []; S.loaded = false; S.settings = { name: '', calendarSync: false, reminderMinutes: 0 }; showPin('create'); },
     recDone() { enterApp(); },
+    pickPhoto() { const f = $('#photo-file'); if (f) f.click(); },
+    removePhoto() { S.profile.photo = ''; saveProfile(); render(); openSettings(); },
+    avColor(el) { S.profile.color = Number(el.dataset.i) || 0; saveProfile(); render(); openSettings(); },
+    importList() { openImport(); },
+    async impPaste() { try { const v = await navigator.clipboard.readText(); if (v) { $('#imp-text').value = v; checkImport(); return; } } catch (e) { /* fall through */ } $('#imp-text').focus(); },
+    impFile() { const f = $('#imp-file'); if (f) f.click(); },
+    impCheck() { checkImport(); },
+    impRun() {
+      const list = importDraft; importDraft = [];
+      if (!list.length) return;
+      list.forEach((item) => { S.agenda.push(item); S.outbox.push({ action: 'saveAgenda', payload: { item: item }, kind: 'bulk' }); });
+      persist(); closeSheet(); S.view = 'agenda'; A.clearFilter(null, true); render();
+      toast(t('importing', { n: list.length }), 'info');
+      flush();
+    },
     askErase() {
       confirmBox(t('eraseQ'), t('eraseSub'), t('delete'), () => {
-        ['ak_local', 'ak_local_db', 'ak_pinhash', 'ak_rechash', 'ak_agenda', 'ak_notes', 'ak_outbox', 'ak_loaded', 'ak_settings', 'ak_packed', 'ak_backup', 'ak_lockuntil'].forEach((k) => store.del(k));
+        ['ak_local', 'ak_local_db', 'ak_pinhash', 'ak_rechash', 'ak_agenda', 'ak_notes', 'ak_outbox', 'ak_loaded', 'ak_settings', 'ak_packed', 'ak_backup', 'ak_lockuntil', 'ak_profile'].forEach((k) => store.del(k));
         setTimeout(() => location.reload(), 300);
       }, true);
     },
     async exportBackup() {
-      const data = { app: 'AgendaKu', version: VERSION, exportedAt: new Date().toISOString(), settings: S.settings, agenda: S.agenda, notes: S.notes };
+      const data = { app: 'AgendaKu', version: VERSION, exportedAt: new Date().toISOString(), settings: S.settings, profile: S.profile, agenda: S.agenda, notes: S.notes };
       const ok = await saveFile('agendaku-backup-' + todayStr() + '.json', 'application/json', JSON.stringify(data, null, 1));
       if (ok) { S.lastBackup = Date.now(); store.set('ak_backup', S.lastBackup); toast(t('backupDone'), 'success'); renderView(); }
     },
@@ -1337,7 +1463,7 @@
     askDisconnect() {
       confirmBox(t('disconnectQ'), t('disconnectSub'), t('disconnect'), () => {
         api('logout').catch(() => {});
-        ['ak_api', 'ak_token', 'ak_pinhash', 'ak_agenda', 'ak_notes', 'ak_outbox', 'ak_loaded', 'ak_settings', 'ak_sheet', 'ak_packed'].forEach(store.del);
+        ['ak_api', 'ak_token', 'ak_pinhash', 'ak_agenda', 'ak_notes', 'ak_outbox', 'ak_loaded', 'ak_settings', 'ak_sheet', 'ak_packed', 'ak_profile'].forEach(store.del);
         setTimeout(() => location.reload(), 300);
       }, true);
     },
@@ -1359,7 +1485,34 @@
       const it = S.agenda.find((x) => x.id === id), items = it ? bringList(it) : [];
       const c = $('#packed-count'); if (c) c.textContent = t('packed', { a: list.filter((p) => items.indexOf(p) >= 0).length, b: items.length });
     },
-    setName(el) { const v = el.value.trim(); if (v !== S.settings.name) saveSettings({ name: v }); },
+    setName(el) {
+      const v = el.value.trim(); if (v === S.settings.name) return;
+      saveSettings({ name: v }); render();
+      const n = $('#pc-name'); if (n) n.textContent = v || t('hiNoName');
+      const a = $('.av-edit .av'); if (a) a.outerHTML = avatar(84);
+    },
+    setBio(el) { S.profile.bio = el.value.trim().slice(0, 80); saveProfile(); const b = $('#pc-bio'); if (b) b.textContent = S.profile.bio || t('bioEmpty'); },
+    photoFile(el) {
+      const file = el.files && el.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const side = Math.min(img.width, img.height), c = document.createElement('canvas');
+        c.width = c.height = 256;
+        c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 256, 256);
+        S.profile.photo = c.toDataURL('image/jpeg', 0.85);
+        saveProfile(); URL.revokeObjectURL(url); render(); openSettings();
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); toast(t('photoBad'), 'error'); };
+      img.src = url; el.value = '';
+    },
+    impFile(el) {
+      const file = el.files && el.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { $('#imp-text').value = String(reader.result || ''); el.value = ''; checkImport(); };
+      reader.readAsText(file);
+    },
     setCal(el) { saveSettings({ calendarSync: el.checked }); },
     setRem(el) { saveSettings({ reminderMinutes: Number(el.value) }); },
     setLock(el) { S.lockOnOpen = el.checked; store.set('ak_lock', S.lockOnOpen); },
@@ -1378,6 +1531,7 @@
           const db = { settings: Object.assign({ name: '' }, d.settings || {}, { calendarSync: false, reminderMinutes: 0 }), agenda: agenda, notes: notes };
           store.set('ak_local_db', db);
           S.agenda = agenda; S.notes = notes; S.settings = db.settings; S.outbox = [];
+          if (d.profile && typeof d.profile === 'object') { S.profile = { photo: /^data:image\//.test(d.profile.photo || '') ? d.profile.photo : '', bio: String(d.profile.bio || '').slice(0, 80), color: Number(d.profile.color) || 0 }; saveProfile(); }
           persist(); closeSheet(); render(); toast(t('importDone'), 'success');
         });
       };
