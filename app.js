@@ -13,7 +13,7 @@
 
   /* ============ 1. SETUP & HELPERS ============ */
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.3.1';
   const CREDIT = 'Created by CreanovativeCo';   // brand line shown on the start screens, Home and Settings
   const CATS = ['Work', 'Family', 'School', 'Personal', 'Other'];
   const STATUSES = ['Scheduled', 'Done', 'Postponed', 'Cancelled', 'Other'];
@@ -1236,7 +1236,18 @@
   let shareOpt = null;
   function shareItems(o) {
     if (o.id) return S.agenda.filter((x) => x.id === o.id);
-    return S.agenda.filter((x) => x.date === o.date && (o.cat === 'all' || x.category === o.cat) && (o.cancelled || x.status !== 'Cancelled')).sort(byWhen);
+    return S.agenda.filter((x) => x.date >= o.from && x.date <= o.to && (o.cat === 'all' || x.category === o.cat) && (o.cancelled || x.status !== 'Cancelled')).sort(byWhen);
+  }
+  /** "16–22 November 2026", or "30 November – 6 December 2026" across months */
+  function rangeLabel(a, b) {
+    const da = toDate(a), db = toDate(b);
+    if (da.getFullYear() !== db.getFullYear()) return fmtDate(a, { day: 'numeric', month: 'long', year: 'numeric' }) + ' – ' + fmtDate(b, { day: 'numeric', month: 'long', year: 'numeric' });
+    if (da.getMonth() !== db.getMonth()) return fmtDate(a, { day: 'numeric', month: 'long' }) + ' – ' + fmtDate(b, { day: 'numeric', month: 'long', year: 'numeric' });
+    return da.getDate() + '–' + fmtDate(b, { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  function sharePeriods() {
+    const td = todayStr(), ws = weekStart(td);
+    return [['today', td, td], ['tomorrow', addDays(td, 1), addDays(td, 1)], ['shareThisWeek', ws, addDays(ws, 6)], ['shareNextWeek', addDays(ws, 7), addDays(ws, 13)]];
   }
   /** Builds the message. WhatsApp shows *text* in bold and _text_ in italics, and makes plain links tappable. */
   function shareText(o) {
@@ -1244,14 +1255,21 @@
     const clean = (v) => String(v || '').replace(/\s+/g, ' ').trim();
     const L = [];
     if (o.opening.trim()) L.push(o.opening.trim(), '');
-    const day = fmtDate(o.id ? items[0].date : o.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    L.push(o.id ? '*' + clean(items[0].title) + '*' : '*' + t('shareHead', { date: day }) + '*');
+    const multi = !o.id && o.from !== o.to;
+    const day = fmtDate(o.id ? items[0].date : o.from, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    L.push(o.id ? '*' + clean(items[0].title) + '*' : '*' + t('shareHead', { date: multi ? rangeLabel(o.from, o.to) : day }) + '*');
     if (o.id) L.push('🗓️ ' + day);
     else if (o.cat !== 'all') L.push('_' + t('category') + ': ' + t('cat_' + o.cat) + '_');
     L.push('');
     if (!items.length) L.push('_' + t('shareNone') + '_');
-    items.forEach((it, i) => {
-      if (!o.id) L.push('*' + (i + 1) + '. ' + clean(it.title) + '*');
+    let lastDay = '', num = 0;
+    items.forEach((it) => {
+      if (multi && it.date !== lastDay) {           // a week: group the agendas under each day
+        lastDay = it.date; num = 0;
+        L.push('📅 *' + fmtDate(it.date, { weekday: 'long', day: 'numeric', month: 'long' }) + '*', '');
+      }
+      num++;
+      if (!o.id) L.push('*' + num + '. ' + clean(it.title) + '*');
       L.push('🕘 ' + (it.start ? it.start + (it.end ? '–' + it.end : '') : t('allDay')) + (it.status !== 'Scheduled' ? '  ·  ' + t('st_' + it.status) : ''));
       if (o.cat === 'all' && !o.id) L.push('🏷️ ' + t('cat_' + it.category));
       if (it.location) L.push('📍 ' + clean(it.location));
@@ -1268,18 +1286,18 @@
   }
   function openShare(o) {
     const saved = store.get('ak_share', {});
-    shareOpt = Object.assign({ date: todayStr(), cat: 'all', notes: saved.notes !== false, bring: saved.bring !== false, cancelled: false,
+    if (o && o.date) { o.from = o.date; o.to = o.date; delete o.date; }
+    shareOpt = Object.assign({ from: todayStr(), to: todayStr(), cat: 'all', notes: saved.notes !== false, bring: saved.bring !== false, cancelled: false,
       opening: saved.opening || '', id: '' }, o || {});
     const single = !!shareOpt.id;
     const chip = (v, label, color) => `<button type="button" class="chip ${shareOpt.cat === v ? 'on' : ''}" data-act="shareCat" data-v="${v}" ${color ? `style="--c:${color}"` : ''}>${color ? '<u></u>' : ''}${label}</button>`;
-    const td = todayStr(), tm = addDays(td, 1);
     openSheet({ type: 'share' }, `
       ${sheetHead(single ? t('shareOneTitle') : t('shareTitle'))}
-      ${single ? '' : `<div class="field"><label>${t('date')}</label>
-        <div class="row"><div class="seg small" style="flex:none">
-          <button type="button" data-act="shareDate" data-date="${td}" class="${shareOpt.date === td ? 'on' : ''}">${t('today')}</button>
-          <button type="button" data-act="shareDate" data-date="${tm}" class="${shareOpt.date === tm ? 'on' : ''}">${t('tomorrow')}</button></div>
-          <input type="date" id="sh-date" value="${esc(shareOpt.date)}" data-ch="shareDateInput" style="flex:1"></div></div>
+      ${single ? '' : `<div class="field"><label>${t('sharePeriod')}</label>
+        <div class="seg small sh-periods">${sharePeriods().map((p) => `<button type="button" data-act="sharePeriod" data-from="${p[1]}" data-to="${p[2]}" class="${shareOpt.from === p[1] && shareOpt.to === p[2] ? 'on' : ''}">${t(p[0])}</button>`).join('')}</div>
+        <div class="grid2" style="margin-top:8px"><label class="mini-lbl">${t('from')}<input type="date" id="sh-from" value="${esc(shareOpt.from)}" data-ch="shareRange"></label>
+          <label class="mini-lbl">${t('to')}<input type="date" id="sh-to" value="${esc(shareOpt.to)}" data-ch="shareRange"></label></div>
+        <p class="err" id="sh-err"></p></div>
       <div class="field"><label>${t('category')}</label><div class="chips pick" id="sh-cats">${chip('all', t('all'))}${CATS.map((c) => chip(c, t('cat_' + c), CAT_COLOR[c])).join('')}</div></div>`}
       <div class="field"><label for="sh-open">${t('shareOpening')} <span class="muted">(${t('optional')})</span></label>
         <input id="sh-open" maxlength="160" placeholder="${t('shareOpeningPh')}" value="${esc(shareOpt.opening)}" data-in="shareOpening" autocomplete="off"></div>
@@ -1310,6 +1328,7 @@
     if (wa) wa.classList.toggle('disabled', !n);
     saveShareOpt();   // remember the opening line and switches for next time
   }
+  function markPeriod() { $$('.sh-periods button').forEach((b) => b.classList.toggle('on', b.dataset.from === shareOpt.from && b.dataset.to === shareOpt.to)); }
   function saveShareOpt() { store.set('ak_share', { notes: shareOpt.notes, bring: shareOpt.bring, opening: shareOpt.opening }); }
 
   // ----- Import a list of agendas (CSV text or file) -----
@@ -1457,7 +1476,7 @@
     shareDay(el) { openShare({ date: el.dataset.date || todayStr() }); },
     shareOne(el) { openShare({ id: el.dataset.id }); },
     shareCat(el) { shareOpt.cat = el.dataset.v; $$('#sh-cats .chip').forEach((c) => c.classList.toggle('on', c === el)); renderSharePreview(); },
-    shareDate(el) { shareOpt.date = el.dataset.date; $('#sh-date').value = shareOpt.date; $$('.seg [data-act="shareDate"]').forEach((b) => b.classList.toggle('on', b === el)); renderSharePreview(); },
+    sharePeriod(el) { shareOpt.from = el.dataset.from; shareOpt.to = el.dataset.to; $('#sh-from').value = shareOpt.from; $('#sh-to').value = shareOpt.to; markPeriod(); renderSharePreview(); },
     shareWa(el, e) {
       if (!shareItems(shareOpt).length) { e.preventDefault(); toast(t('shareNone'), 'info'); return; }
       saveShareOpt();
@@ -1622,7 +1641,15 @@
     setRem(el) { saveSettings({ reminderMinutes: Number(el.value) }); },
     setLock(el) { S.lockOnOpen = el.checked; store.set('ak_lock', S.lockOnOpen); },
     shareToggle(el) { shareOpt[el.dataset.k] = el.checked; renderSharePreview(); },
-    shareDateInput(el) { if (!el.value) return; shareOpt.date = el.value; $$('.seg [data-act="shareDate"]').forEach((b) => b.classList.toggle('on', b.dataset.date === el.value)); renderSharePreview(); },
+    shareRange() {
+      let a = $('#sh-from').value, b = $('#sh-to').value;
+      if (!a || !b) return;
+      if (b < a) { const x = a; a = b; b = x; }
+      const err = $('#sh-err');
+      if (toDate(b) - toDate(a) > 30 * 86400000) { err.textContent = t('shareMax'); return; }
+      err.textContent = '';
+      shareOpt.from = a; shareOpt.to = b; markPeriod(); renderSharePreview();
+    },
     importFile(el) {
       const file = el.files && el.files[0];
       if (!file) return;

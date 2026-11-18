@@ -48,6 +48,7 @@ window.AK_TEXT = {
     eraseSub: 'All agendas, notes and the PIN on this phone will be removed. This cannot be undone. Export a backup first if you still need the data.',
     addGcal: 'Add to Google Calendar', addIcs: 'Other calendar (.ics file)',
     // share to WhatsApp
+    sharePeriod: 'Period', shareThisWeek: 'This week', shareNextWeek: 'Next week', shareMax: 'Choose at most 31 days.',
     share: 'Share', shareTitle: 'Share agenda', shareOneTitle: 'Share this agenda',
     shareHead: 'Agenda for {date}', shareNone: 'No agenda for this selection.', shareBring: 'Bring',
     shareOpening: 'Opening line', shareOpeningPh: 'e.g. Good morning Sir, here is today\'s agenda:',
@@ -194,6 +195,7 @@ window.AK_TEXT = {
     eraseAll: 'Hapus semua data di HP ini', eraseQ: 'Hapus semua data di HP ini?',
     eraseSub: 'Semua agenda, catatan, dan PIN di HP ini akan dihapus dan tidak bisa dikembalikan. Ekspor cadangan dulu kalau datanya masih diperlukan.',
     addGcal: 'Tambah ke Google Calendar', addIcs: 'Kalender lain (file .ics)',
+    sharePeriod: 'Periode', shareThisWeek: 'Minggu ini', shareNextWeek: 'Minggu depan', shareMax: 'Pilih paling lama 31 hari.',
     share: 'Bagikan', shareTitle: 'Bagikan agenda', shareOneTitle: 'Bagikan agenda ini',
     shareHead: 'Agenda {date}', shareNone: 'Tidak ada agenda untuk pilihan ini.', shareBring: 'Bawa',
     shareOpening: 'Kalimat pembuka', shareOpeningPh: 'mis. Selamat pagi Bapak, berikut agenda hari ini:',

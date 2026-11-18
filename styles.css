@@ -508,6 +508,8 @@ input::placeholder, textarea::placeholder { color: #A9AEC2; }
 .btn.wa.disabled { opacity: .5; }
 .sh-toggles .switch { margin-bottom: 4px; min-height: 42px; }
 .sh-toggles { margin-bottom: 10px; }
+.sh-periods button { padding: 0 6px; }
+.mini-lbl { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); min-width: 0; }
 
 /* ---------- profile ---------- */
 .av { display: inline-grid; place-items: center; border-radius: 50%; overflow: hidden; font-weight: 800; flex: none; line-height: 1; }
