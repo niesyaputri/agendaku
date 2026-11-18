@@ -499,6 +499,16 @@ input::placeholder, textarea::placeholder { color: #A9AEC2; }
 .cal-add + .btn.block { margin-top: 10px; }
 .gate-body .btn.link.danger { color: var(--danger); }
 
+/* ---------- share to WhatsApp ---------- */
+.wa-preview { background: #EFE7DD; border-radius: 16px; padding: 12px; }
+.wa-preview .bubble { background: #D9FDD3; border-radius: 4px 12px 12px 12px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 14px; line-height: 1.45; color: #111B21; box-shadow: 0 1px 1px rgba(0,0,0,.08); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+.wa-preview u { color: #027EB5; text-decoration: underline; }
+.btn.wa { background: #25D366; color: #fff; box-shadow: 0 8px 18px rgba(37, 211, 102, .3); }
+.btn.wa.disabled { opacity: .5; }
+.sh-toggles .switch { margin-bottom: 4px; min-height: 42px; }
+.sh-toggles { margin-bottom: 10px; }
+
 /* ---------- profile ---------- */
 .av { display: inline-grid; place-items: center; border-radius: 50%; overflow: hidden; font-weight: 800; flex: none; line-height: 1; }
 .av img { width: 100%; height: 100%; object-fit: cover; display: block; }

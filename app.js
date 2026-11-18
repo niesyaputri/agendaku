@@ -13,7 +13,7 @@
 
   /* ============ 1. SETUP & HELPERS ============ */
 
-  const VERSION = '1.2.1';
+  const VERSION = '1.3.0';
   const CREDIT = 'Created by CreanovativeCo';   // brand line shown on the start screens, Home and Settings
   const CATS = ['Work', 'Family', 'School', 'Personal', 'Other'];
   const STATUSES = ['Scheduled', 'Done', 'Postponed', 'Cancelled', 'Other'];
@@ -102,7 +102,9 @@
     sheet: '<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M5 10h14M5 15h14M11 10v10"/>',
     spark: '<path d="M12 4v4M12 16v4M4 12h4M16 12h4"/>',
     user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
-    up: '<path d="M12 16V5M7.5 9.5L12 5l4.5 4.5M5 19h14"/>'
+    up: '<path d="M12 16V5M7.5 9.5L12 5l4.5 4.5M5 19h14"/>',
+    share: '<circle cx="17.5" cy="6" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><circle cx="17.5" cy="18" r="2.5"/><path d="M8.7 10.8l6.6-3.6M8.7 13.2l6.6 3.6"/>',
+    wa: '<path d="M4.5 19.5l1.1-3.9A8 8 0 1112 20a8 8 0 01-3.9-1z"/><path d="M9.2 8.6c.2-.4.6-.4.8 0l.6 1.4c.1.3 0 .5-.2.7l-.4.4a5.5 5.5 0 002.7 2.700l.4-.4c.2-.2.4-.3.7-.2l1.400.6c.4.2.4.6 0 .8-.6.6-1.500.8-2.300.5a7.5 7.5 0 01-4-4c-.3-.8-.1-1.700.5-2.300z"/>'
   };
   const icon = (n, cls) => `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n] || ''}</svg>`;
 
@@ -662,7 +664,8 @@
         ${tile('peach', 'flag', st.follow, t('tileFollow'), 'go', 'data-view="insights"')}
       </section>
       <section>
-        <div class="sec-head"><h2>${t('todayAgenda')}</h2><span class="muted">${fmtDate(td, { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
+        <div class="sec-head"><div><h2>${t('todayAgenda')}</h2><span class="muted">${fmtDate(td, { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
+          ${todays.length ? `<button class="btn soft sm" data-act="shareDay" data-date="${td}">${icon('share')}${t('share')}</button>` : ''}</div>
         ${todays.length ? `<div class="ag-list">${todays.map(agCard).join('')}</div>` : emptyBox('cal', t('emptyDay'), '', `<button class="btn soft" data-act="add">${icon('plus')}${t('emptyDayCta')}</button>`)}
       </section>
       <section class="card" id="cal-card">${calendarHtml()}</section>
@@ -717,7 +720,8 @@
     if (S.selDate) {
       const list = S.agenda.filter((x) => x.date === S.selDate).sort(byWhen);
       below = `<div class="sec-head sub"><h3>${t('agendaOn', { date: fmtDate(S.selDate, { weekday: 'short', day: 'numeric', month: 'short' }) })}</h3>
-        <button class="btn link" data-act="addOn" data-date="${S.selDate}">${icon('plus')}${t('addAgenda')}</button></div>
+        <div class="row" style="gap:2px">${list.length ? `<button class="btn link" data-act="shareDay" data-date="${S.selDate}" aria-label="${t('share')}">${icon('share')}</button>` : ''}
+        <button class="btn link" data-act="addOn" data-date="${S.selDate}">${icon('plus')}${t('addAgenda')}</button></div></div>
         ${list.length ? `<div class="ag-list">${list.map(agCard).join('')}</div>` : `<p class="muted pad">${t('emptyDay')}</p>`}`;
     }
     return `<div class="cal-head"><h2>${esc(title)}</h2><div>
@@ -1118,7 +1122,8 @@
     const rel = relDay(it.date);
     openSheet({ type: 'detail', id: id }, `
       ${sheetHead(`<span class="pill cat" style="--p:${CAT_COLOR[it.category]}">${t('cat_' + it.category)}</span> <span class="pill" style="--p:${ST_COLOR[it.status]}">${t('st_' + it.status)}</span>`,
-        `<button class="icon-btn" data-act="editAgenda" data-id="${esc(id)}" aria-label="${t('edit')}">${icon('edit')}</button>
+        `<button class="icon-btn" data-act="shareOne" data-id="${esc(id)}" aria-label="${t('share')}">${icon('share')}</button>
+         <button class="icon-btn" data-act="editAgenda" data-id="${esc(id)}" aria-label="${t('edit')}">${icon('edit')}</button>
          <button class="icon-btn danger" data-act="askDelete" data-id="${esc(id)}" aria-label="${t('delete')}">${icon('trash')}</button>`)}
       <h1 class="d-title">${esc(it.title)}</h1>
       <div class="d-rows">
@@ -1226,6 +1231,86 @@
     Object.assign(S.settings, patch); persist(); renderView();
     enqueue('saveSettings', { settings: patch }, 'settings');
   }
+
+  // ----- Share agendas as a WhatsApp message -----
+  let shareOpt = null;
+  function shareItems(o) {
+    if (o.id) return S.agenda.filter((x) => x.id === o.id);
+    return S.agenda.filter((x) => x.date === o.date && (o.cat === 'all' || x.category === o.cat) && (o.cancelled || x.status !== 'Cancelled')).sort(byWhen);
+  }
+  /** Builds the message. WhatsApp shows *text* in bold and _text_ in italics, and makes plain links tappable. */
+  function shareText(o) {
+    const items = shareItems(o);
+    const clean = (v) => String(v || '').replace(/\s+/g, ' ').trim();
+    const L = [];
+    if (o.opening.trim()) L.push(o.opening.trim(), '');
+    const day = fmtDate(o.id ? items[0].date : o.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    L.push(o.id ? '*' + clean(items[0].title) + '*' : '*' + t('shareHead', { date: day }) + '*');
+    if (o.id) L.push('🗓️ ' + day);
+    else if (o.cat !== 'all') L.push('_' + t('category') + ': ' + t('cat_' + o.cat) + '_');
+    L.push('');
+    if (!items.length) L.push('_' + t('shareNone') + '_');
+    items.forEach((it, i) => {
+      if (!o.id) L.push('*' + (i + 1) + '. ' + clean(it.title) + '*');
+      L.push('🕘 ' + (it.start ? it.start + (it.end ? '–' + it.end : '') : t('allDay')) + (it.status !== 'Scheduled' ? '  ·  ' + t('st_' + it.status) : ''));
+      if (o.cat === 'all' && !o.id) L.push('🏷️ ' + t('cat_' + it.category));
+      if (it.location) L.push('📍 ' + clean(it.location));
+      const url = safeUrl(it.link);
+      if (url) L.push('🔗 ' + url);
+      if (o.bring && bringList(it).length) L.push('🎒 ' + t('shareBring') + ': ' + bringList(it).join(', '));
+      if (o.notes && String(it.notes || '').trim()) {
+        String(it.notes).trim().split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 6).forEach((x, k) => L.push((k ? '      ' : '📝 ') + x));
+      }
+      L.push('');
+    });
+    if (!o.id && items.length) L.push('_' + t('agendasCount', { n: items.length }) + '_');
+    return L.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+  function openShare(o) {
+    const saved = store.get('ak_share', {});
+    shareOpt = Object.assign({ date: todayStr(), cat: 'all', notes: saved.notes !== false, bring: saved.bring !== false, cancelled: false,
+      opening: saved.opening || '', id: '' }, o || {});
+    const single = !!shareOpt.id;
+    const chip = (v, label, color) => `<button type="button" class="chip ${shareOpt.cat === v ? 'on' : ''}" data-act="shareCat" data-v="${v}" ${color ? `style="--c:${color}"` : ''}>${color ? '<u></u>' : ''}${label}</button>`;
+    const td = todayStr(), tm = addDays(td, 1);
+    openSheet({ type: 'share' }, `
+      ${sheetHead(single ? t('shareOneTitle') : t('shareTitle'))}
+      ${single ? '' : `<div class="field"><label>${t('date')}</label>
+        <div class="row"><div class="seg small" style="flex:none">
+          <button type="button" data-act="shareDate" data-date="${td}" class="${shareOpt.date === td ? 'on' : ''}">${t('today')}</button>
+          <button type="button" data-act="shareDate" data-date="${tm}" class="${shareOpt.date === tm ? 'on' : ''}">${t('tomorrow')}</button></div>
+          <input type="date" id="sh-date" value="${esc(shareOpt.date)}" data-ch="shareDateInput" style="flex:1"></div></div>
+      <div class="field"><label>${t('category')}</label><div class="chips pick" id="sh-cats">${chip('all', t('all'))}${CATS.map((c) => chip(c, t('cat_' + c), CAT_COLOR[c])).join('')}</div></div>`}
+      <div class="field"><label for="sh-open">${t('shareOpening')} <span class="muted">(${t('optional')})</span></label>
+        <input id="sh-open" maxlength="160" placeholder="${t('shareOpeningPh')}" value="${esc(shareOpt.opening)}" data-in="shareOpening" autocomplete="off"></div>
+      <div class="sh-toggles">
+        <label class="switch"><input type="checkbox" data-ch="shareToggle" data-k="bring" ${shareOpt.bring ? 'checked' : ''}><i></i><span>${t('shareIncBring')}</span></label>
+        <label class="switch"><input type="checkbox" data-ch="shareToggle" data-k="notes" ${shareOpt.notes ? 'checked' : ''}><i></i><span>${t('shareIncNotes')}</span></label>
+        ${single ? '' : `<label class="switch"><input type="checkbox" data-ch="shareToggle" data-k="cancelled" ${shareOpt.cancelled ? 'checked' : ''}><i></i><span>${t('shareIncCancelled')}</span></label>`}
+      </div>
+      <div class="field"><label>${t('sharePreview')}</label><div class="wa-preview" id="sh-preview"></div></div>
+      <div class="sheet-foot">
+        <button type="button" class="btn ghost" data-act="shareCopy" aria-label="${t('copyText')}">${icon('copy')}${t('copyText')}</button>
+        <a class="btn wa grow big" id="sh-wa" href="#" target="_blank" rel="noopener" data-act="shareWa">${icon('wa')}${t('shareWa')}</a>
+      </div>
+      ${navigator.share ? `<button class="btn link block" data-act="shareOther">${icon('share')}${t('shareOther')}</button>` : ''}`);
+    renderSharePreview();
+  }
+  /** Shows the message as WhatsApp will: *bold* and _italic_ rendered, links underlined. */
+  function renderSharePreview() {
+    if (!shareOpt) return;
+    const text = shareText(shareOpt);
+    const html = esc(text)
+      .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:]|$)/gm, '$1<b>$2</b>')
+      .replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?:]|$)/gm, '$1<i>$2</i>')
+      .replace(/(https?:\/\/[^\s<]+)/g, '<u>$1</u>');
+    const box = $('#sh-preview'); if (box) box.innerHTML = '<div class="bubble">' + html + '</div>';
+    const wa = $('#sh-wa'); if (wa) wa.href = 'https://wa.me/?text=' + encodeURIComponent(text);
+    const n = shareItems(shareOpt).length;
+    if (wa) wa.classList.toggle('disabled', !n);
+    saveShareOpt();   // remember the opening line and switches for next time
+  }
+  function saveShareOpt() { store.set('ak_share', { notes: shareOpt.notes, bring: shareOpt.bring, opening: shareOpt.opening }); }
 
   // ----- Import a list of agendas (CSV text or file) -----
   let importDraft = [];
@@ -1369,6 +1454,23 @@
     removePhoto() { S.profile.photo = ''; saveProfile(); render(); openSettings(); },
     avColor(el) { S.profile.color = Number(el.dataset.i) || 0; saveProfile(); render(); openSettings(); },
     importList() { openImport(); },
+    shareDay(el) { openShare({ date: el.dataset.date || todayStr() }); },
+    shareOne(el) { openShare({ id: el.dataset.id }); },
+    shareCat(el) { shareOpt.cat = el.dataset.v; $$('#sh-cats .chip').forEach((c) => c.classList.toggle('on', c === el)); renderSharePreview(); },
+    shareDate(el) { shareOpt.date = el.dataset.date; $('#sh-date').value = shareOpt.date; $$('.seg [data-act="shareDate"]').forEach((b) => b.classList.toggle('on', b === el)); renderSharePreview(); },
+    shareWa(el, e) {
+      if (!shareItems(shareOpt).length) { e.preventDefault(); toast(t('shareNone'), 'info'); return; }
+      saveShareOpt();
+    },
+    async shareCopy() {
+      const text = shareText(shareOpt); saveShareOpt();
+      try { await navigator.clipboard.writeText(text); toast(t('copied'), 'success'); }
+      catch (err) { toast(t('copyFailed'), 'error'); }
+    },
+    async shareOther() {
+      saveShareOpt();
+      try { await navigator.share({ text: shareText(shareOpt) }); } catch (err) { /* cancelled */ }
+    },
     async impPaste() { try { const v = await navigator.clipboard.readText(); if (v) { $('#imp-text').value = v; checkImport(); return; } } catch (e) { /* fall through */ } $('#imp-text').focus(); },
     impFile() { const f = $('#imp-file'); if (f) f.click(); },
     impCheck() { checkImport(); },
@@ -1519,6 +1621,8 @@
     setCal(el) { saveSettings({ calendarSync: el.checked }); },
     setRem(el) { saveSettings({ reminderMinutes: Number(el.value) }); },
     setLock(el) { S.lockOnOpen = el.checked; store.set('ak_lock', S.lockOnOpen); },
+    shareToggle(el) { shareOpt[el.dataset.k] = el.checked; renderSharePreview(); },
+    shareDateInput(el) { if (!el.value) return; shareOpt.date = el.value; $$('.seg [data-act="shareDate"]').forEach((b) => b.classList.toggle('on', b.dataset.date === el.value)); renderSharePreview(); },
     importFile(el) {
       const file = el.files && el.files[0];
       if (!file) return;
@@ -1563,6 +1667,7 @@
   document.addEventListener('input', (e) => {
     const k = e.target.dataset && e.target.dataset.in;
     if (k === 'agendaSearch') { S.filter.q = e.target.value; $('#agenda-list').innerHTML = agendaListHtml(); const seg = $('#view .seg'); if (seg) seg.hidden = !!(S.filter.q || S.filter.from || S.filter.to); }
+    if (k === 'shareOpening' && shareOpt) { shareOpt.opening = e.target.value; renderSharePreview(); }
     if (k === 'noteSearch') { S.noteFilter.q = e.target.value; $('#notes-list').innerHTML = notesListHtml(); }
     if (e.target.id === 'f-title' && e.target.value.trim()) setFieldError('fw-title', '');
     if (e.target.id === 'n-title' && e.target.value.trim()) setFieldError('nw-title', '');
