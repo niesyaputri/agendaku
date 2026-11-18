@@ -7,7 +7,7 @@
  *  (for example v1 -> v2) so phones pick up the new files.
  * ============================================================
  */
-const CACHE = 'agendaku-v6';
+const CACHE = 'agendaku-v7';
 const FILES = ['./', 'index.html', 'styles.css', 'config.js', 'hash.js', 'i18n.js', 'parser.js', 'app.js',
   'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
